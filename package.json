@@ -10,7 +10,6 @@
     "generate": "shopify app generate",
     "deploy": "shopify app deploy"
   },
-  "dependencies": {},
   "trustedDependencies": [
     "@shopify/plugin-cloudflare"
   ],
@@ -18,5 +17,8 @@
   "private": true,
   "workspaces": [
     "extensions/*"
-  ]
+  ],
+  "dependencies": {
+    "date-fns": "^3.6.0"
+  }
 }
