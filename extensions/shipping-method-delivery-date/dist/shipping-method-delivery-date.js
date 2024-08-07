@@ -19481,6 +19481,18 @@ ${errorInfo.componentStack}`);
       this.name = "CheckoutUIExtensionError";
     }
   };
+  var ScopeNotGrantedError = class extends Error {
+    constructor(...args) {
+      super(...args);
+      this.name = "ScopeNotGrantedError";
+    }
+  };
+  var ExtensionHasNoMethodError = class extends Error {
+    constructor(method, target) {
+      super(`Cannot call '${method}()' on target '${target}'. The corresponding property was not found on the API.`);
+      this.name = "ExtensionHasNoMethodError";
+    }
+  };
   var ExtensionHasNoTargetError = class extends Error {
     constructor(method, target) {
       super(`Cannot call '${method}()' on target '${target}'. Property 'target' is not found on api.`);
@@ -19519,6 +19531,15 @@ ${errorInfo.componentStack}`);
     return subscription.current;
   }
 
+  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/shipping-address.mjs
+  function useShippingAddress() {
+    const shippingAddress = useApi().shippingAddress;
+    if (!shippingAddress) {
+      throw new ScopeNotGrantedError("Using shipping address requires having shipping address permissions granted to your app.");
+    }
+    return useSubscription(shippingAddress);
+  }
+
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/shipping-option-target.mjs
   var import_react11 = __toESM(require_react(), 1);
   function useShippingOptionTarget() {
@@ -19537,6 +19558,15 @@ ${errorInfo.componentStack}`);
       };
     }, [shippingOptionTarget, isTargetSelected, renderMode]);
     return shippingOption;
+  }
+
+  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/delivery-groups.mjs
+  function useDeliveryGroups() {
+    const api = useApi();
+    if (!("deliveryGroups" in api)) {
+      throw new ExtensionHasNoMethodError("deliveryGroups", api.extension.target);
+    }
+    return useSubscription(api.deliveryGroups);
   }
 
   // node_modules/date-fns/toDate.mjs
@@ -21097,14 +21127,40 @@ ${errorInfo.componentStack}`);
     () => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Extension, {})
   );
   function Extension() {
+    const deliveryGroupList = useDeliveryGroups();
     const { shippingOptionTarget } = useShippingOptionTarget();
-    const isExpressOption = shippingOptionTarget.title.indexOf("Express") !== -1 || shippingOptionTarget.title.indexOf("Expedited") !== -1 || shippingOptionTarget.title.indexOf("Priority") !== -1;
+    const address = useShippingAddress();
+    const isValidAddress = (address2) => {
+      if (!address2 || !address2.countryCode)
+        return false;
+      if (address2.countryCode === "ZA" || address2.countryCode === "AW") {
+        return false;
+      }
+      if (address2.countryCode === "US" && (address2.provinceCode === "AK" || address2.provinceCode === "HI")) {
+        return false;
+      }
+      return true;
+    };
+    const isValidOption = () => {
+      const expressHandles = deliveryGroupList.map(({ deliveryOptions, groupType }) => {
+        if (groupType !== "oneTimePurchase")
+          return null;
+        const expressOption = deliveryOptions.find(
+          ({ title, cost }) => {
+            return (title.includes("Express") || title.includes("Expedited") || title.includes("Priority")) && (cost == null ? void 0 : cost.amount) !== 0;
+          }
+        );
+        return expressOption == null ? void 0 : expressOption.handle;
+      }).filter(Boolean);
+      return expressHandles.some(
+        (expressHandle) => expressHandle === (shippingOptionTarget == null ? void 0 : shippingOptionTarget.handle)
+      );
+    };
     const date = calculateAndFormatDate();
-    return isExpressOption && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text2, { children: [
+    return isValidAddress(address) && isValidOption() && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text2, { children: [
       "Arrives by: ",
       date,
-      " | Arrives faster \u{1F680} ",
-      shippingOptionTarget.type
+      " | Arrives faster \u{1F680}"
     ] });
   }
   var calculateAndFormatDate = () => {
